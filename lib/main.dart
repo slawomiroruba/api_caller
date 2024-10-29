@@ -31,6 +31,7 @@ class _CallPhoneAppState extends State<CallPhoneApp> {
       MethodChannel('com.example.phone/call'); // Ustawiamy kanał
   String _phoneNumber = '';
   String apiUrl = 'https://cash-online.de/caller.php';
+  String _message = '';
 
   @override
   void initState() {
@@ -58,10 +59,14 @@ class _CallPhoneAppState extends State<CallPhoneApp> {
           await callPhoneNumber(phoneNumber); // Wywołujemy natywną funkcję
         }
       } else {
-        print('Błąd w odpowiedzi z serwera: ${response.statusCode}');
+        setState(() {
+          _message = 'Błąd w odpowiedzi z serwera: ${response.statusCode}';
+        });
       }
     } catch (error) {
-      print('Błąd: $error');
+      setState(() {
+        _message = 'Błąd: $error';
+      });
     }
   }
 
@@ -75,11 +80,43 @@ class _CallPhoneAppState extends State<CallPhoneApp> {
       try {
         await platform.invokeMethod(
             'callPhone', phoneNumber); // Wywołaj natywną metodę
+        await sendPostToApi(
+            phoneNumber); // Wyślij POST do serwera po skutecznym połączeniu
+        setState(() {
+          _message = 'Połączenie z numerem $phoneNumber zakończone.';
+        });
       } on PlatformException catch (e) {
-        print("Failed to make a call: '${e.message}'.");
+        setState(() {
+          _message = "Nie udało się zrealizować połączenia: '${e.message}'.";
+        });
       }
     } else {
-      print('Brak uprawnień do wykonywania połączeń telefonicznych');
+      setState(() {
+        _message = 'Brak uprawnień do wykonywania połączeń telefonicznych';
+      });
+    }
+  }
+
+  Future<void> sendPostToApi(String phoneNumber) async {
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        body: jsonEncode({'phone': phoneNumber, 'status': 'called'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          _message = 'Pomyślnie wysłano POST do serwera.';
+        });
+      } else {
+        setState(() {
+          _message = 'Błąd w wysyłaniu POST do serwera: ${response.statusCode}';
+        });
+      }
+    } catch (error) {
+      setState(() {
+        _message = 'Błąd POST: $error';
+      });
     }
   }
 
@@ -90,11 +127,21 @@ class _CallPhoneAppState extends State<CallPhoneApp> {
         title: const Text('Phone Caller App'),
       ),
       body: Center(
-        child: Text(
-          _phoneNumber.isNotEmpty
-              ? 'Inicjuję połączenie: $_phoneNumber'
-              : 'Oczekiwanie na żądanie...',
-          style: const TextStyle(fontSize: 20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _phoneNumber.isNotEmpty
+                  ? 'Inicjuję połączenie: $_phoneNumber'
+                  : 'Oczekiwanie na żądanie...',
+              style: const TextStyle(fontSize: 20),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _message,
+              style: const TextStyle(fontSize: 16, color: Colors.red),
+            ),
+          ],
         ),
       ),
     );
